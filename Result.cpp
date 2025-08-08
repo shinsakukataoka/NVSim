@@ -34,7 +34,7 @@
 *                     Website: http://www.cse.psu.edu/~xydong/ )
 *******************************************************************************/
 
-
+#include <iomanip>
 #include "Result.h"
 #include "global.h"
 #include "formula.h"
@@ -548,6 +548,22 @@ void Result::print() {
 													* bank->numColumnMat * bank->numRowMat)
 													<< endl;
 	cout << " |--- Mat Leakage Power    = " << TO_WATT(bank->mat.leakage) << " per mat" << endl;
+
+	// ---- Machine-readable summary for scripts ----
+    // Units are SI: area [m^2], latencies [s], dynamic energies [J], leakage [W].
+    std::ios oldState(nullptr);
+    oldState.copyfmt(std::cout);
+    std::cout.setf(std::ios::fixed);
+    std::cout << std::setprecision(12)
+              << "NVSIM_KV"
+              << " area_m2="           << bank->area
+              << " read_latency_s="    << bank->readLatency
+              << " write_latency_s="   << bank->writeLatency
+              << " read_energy_J="     << bank->readDynamicEnergy
+              << " write_energy_J="    << bank->writeDynamicEnergy
+              << " leakage_W="         << bank->leakage
+              << std::endl;
+    std::cout.copyfmt(oldState);
 }
 
 
@@ -596,6 +612,26 @@ void Result::printAsCache(Result &tagResult, CacheAccessMode cacheAccessMode) {
 		cacheLeakage = tagResult.bank->leakage + bank->leakage;
 		/* Calculate area */
 		cacheArea = tagResult.bank->area + bank->area;	/* TO-DO: simply add them together here */
+         
+        // ---- Machine-readable summary for the combined cache ----
+        // SI units: area [m^2], latencies [s], energies [J], leakage [W]
+        {
+            std::ios oldState(nullptr);
+            oldState.copyfmt(std::cout);
+            std::cout.setf(std::ios::fixed);
+            std::cout << std::setprecision(12)
+                      << "NVSIM_KV_CACHE"
+                      << " total_area_m2="       << cacheArea
+                      << " hit_latency_s="       << cacheHitLatency
+                      << " miss_latency_s="      << cacheMissLatency
+                      << " write_latency_s="     << cacheWriteLatency
+                      << " hit_energy_J="        << cacheHitDynamicEnergy
+                      << " miss_energy_J="       << cacheMissDynamicEnergy
+                      << " write_energy_J="      << cacheWriteDynamicEnergy
+                      << " leakage_W="           << cacheLeakage
+                      << std::endl;
+            std::cout.copyfmt(oldState);
+        }
 
 		/* start printing */
 		cout << endl << "=======================" << endl << "CACHE DESIGN -- SUMMARY" << endl << "=======================" << endl;
