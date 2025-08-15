@@ -42,6 +42,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <algorithm>
 
 using namespace std;
 
@@ -818,6 +819,85 @@ void Result::printToCsvFile(ofstream &outputFile) {
             }
             outputFile << tRC_ns << ",";
         }
+	
+	/* Line size & raw per-byte energies (pJ/B) */
+	double line_bytes = bank->blockSize / 8.0;
+	if (line_bytes <= 0) line_bytes = 1.0;
+	double read_pJ_per_B_raw  = (bank->readDynamicEnergy  * 1e12) / line_bytes;
+	double write_pJ_per_B_raw = (bank->writeDynamicEnergy * 1e12) / line_bytes;
+
+	/* ECC alpha */
+	double alpha = inputParameter->eccAlpha;
+	if (alpha < 0.0 && inputParameter->dataBits > 0)
+		alpha = (double)inputParameter->eccBits / (double)inputParameter->dataBits;
+	if (alpha < 0.0) alpha = 0.0;
+
+	/* ECC energy & area effects (reporting only) */
+	double read_pJ_per_payloadB  = read_pJ_per_B_raw  * (1.0 + alpha) * (1.0 + inputParameter->eccLogicEnergyFrac);
+	double write_pJ_per_payloadB = write_pJ_per_B_raw * (1.0 + alpha) * (1.0 + inputParameter->eccLogicEnergyFrac);
+	double area_mm2_with_ecc     = (bank->area * 1e6) * (1.0 + inputParameter->eccAreaFrac);
+	double payload_ratio         = 1.0 / (1.0 + alpha);
+
+	/* Banking, headroom, D2D cap (GB/s) */
+	int    numBanks   = (inputParameter->banks > 0) ? inputParameter->banks : 1;
+	double headroom   = (inputParameter->nvmPeakHeadroom > 0.0) ? inputParameter->nvmPeakHeadroom : 1.0;
+	double perBankRead_GBps  = ((double)bank->blockSize /
+								(bank->mat.subarray.readLatency - bank->mat.subarray.rowDecoder.readLatency
+									+ bank->mat.subarray.precharger.readLatency) / 8.0) / 1e9;
+	double perBankWrite_GBps = ((double)bank->blockSize / bank->mat.subarray.writeLatency / 8.0) / 1e9;
+	double read_GBps_banked  = numBanks * perBankRead_GBps  * headroom;
+	double write_GBps_banked = numBanks * perBankWrite_GBps * headroom;
+	double d2dCap            = (inputParameter->d2dCapGBps > 0.0) ? inputParameter->d2dCapGBps : 1e99;
+	double eff_read_GBps     = (read_GBps_banked  < d2dCap) ? read_GBps_banked  : d2dCap;
+	double eff_write_GBps    = (write_GBps_banked < d2dCap) ? write_GBps_banked : d2dCap;
+
+	/* Banked totals (reporting only) */
+	double area_mm2_banked   = area_mm2_with_ecc * numBanks;
+	double leakage_mW_banked = (bank->leakage * 1e3) * numBanks;
+
+	/* Retention / scrub background power (mW) */
+	double cap_payload_MB = ((double)inputParameter->capacity) / (1024.0*1024.0) * payload_ratio;
+	double retention_mW = 0.0;
+	if (inputParameter->scrubPeriod_s > 0.0 && inputParameter->scrubEnergyPerMB_pJ > 0.0) {
+		retention_mW = (inputParameter->scrubEnergyPerMB_pJ * cap_payload_MB / inputParameter->scrubPeriod_s)
+						* 1e-9 * inputParameter->retentionTempFactor;
+	}
+
+	/* Link energy (pJ per payload byte) */
+	double link_pJ_per_payloadB = 8.0 * inputParameter->linkEnergyPerBit_pJ *
+									(inputParameter->eccOnLink ? (1.0 + alpha) : 1.0);
+
+	/* Endurance multipliers (reporting only) */
+	double write_latency_ns_eff                 = bank->writeLatency * 1e9 * inputParameter->enduranceTimeFactor;
+	double write_energy_pJ_per_payloadB_eff     = write_pJ_per_payloadB * inputParameter->enduranceWriteFactor;
+
+	/* Append new columns (NO newline here; caller adds it) */
+	outputFile
+		<< alpha << ","                      /* ecc_alpha */
+		<< payload_ratio << ","              /* payload_ratio */
+		<< read_pJ_per_B_raw << ","          /* read_energy_pJ_per_B */
+		<< write_pJ_per_B_raw << ","         /* write_energy_pJ_per_B */
+		<< read_pJ_per_payloadB << ","       /* read_energy_pJ_per_payloadB */
+		<< write_pJ_per_payloadB << ","      /* write_energy_pJ_per_payloadB */
+		<< inputParameter->eccAreaFrac << ","/* ecc_area_frac */
+		<< area_mm2_with_ecc << ","          /* area_mm2_with_ecc (per bank) */
+		<< numBanks << ","                   /* banks */
+		<< headroom << ","                   /* nvm_peak_headroom */
+		<< perBankRead_GBps << ","           /* per_bank_read_GBps */
+		<< perBankWrite_GBps << ","          /* per_bank_write_GBps */
+		<< read_GBps_banked << ","           /* read_GBps_banked */
+		<< write_GBps_banked << ","          /* write_GBps_banked */
+		<< d2dCap << ","                     /* d2d_cap_GBps */
+		<< eff_read_GBps << ","              /* cap_effective_read_GBps */
+		<< eff_write_GBps << ","             /* cap_effective_write_GBps */
+		<< area_mm2_banked << ","            /* area_mm2_banked */
+		<< leakage_mW_banked << ","          /* leakage_mW_banked */
+		<< (inputParameter->eccOnLink ? "Yes" : "No") << "," /* ecc_on_link */
+		<< link_pJ_per_payloadB << ","       /* link_energy_pJ_per_payloadB */
+		<< retention_mW << ","               /* retention_mW */
+		<< inputParameter->enduranceCycles << ","            /* endurance_cycles */
+		<< write_latency_ns_eff << ","                       /* write_latency_ns_eff */
+		<< write_energy_pJ_per_payloadB_eff;                 /* write_energy_pJ_per_payloadB_eff */
 }
 
 void Result::printAsCacheToCsvFile(Result &tagResult, CacheAccessMode cacheAccessMode, ofstream &outputFile) {

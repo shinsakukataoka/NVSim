@@ -43,49 +43,35 @@ def to_float(x):
     except Exception:
         return math.nan
 
-def parse_nvsim_row(line, expect_trailing_trc=True):
-    """
-    NVSim CSV has no header; we index from the tail (compatible with patched Result.cpp
-    where tRC_ns is appended last; if not present, we fall back).
-    """
-    toks = [t.strip() for t in line.strip().split(',')]
-    while toks and toks[-1] == '':
-        toks.pop()
-    if not toks:
+def parse_nvsim_row(line):
+    toks = [t.strip() for t in line.strip().split(',') if t.strip() != '']
+    # find the marker just before the numeric block
+    try:
+        i = next(k for k, t in enumerate(toks)
+                 if t in ("Latency-Optimized", "Balanced", "Area-Optimized"))
+    except StopIteration:
         return None
-    # Tail layout with tRC injected (non-cache):
-    # [..., bank.H, bank.W, bank.area_mm2,
-    #      mat.H,  mat.W,  mat.area_mm2,
-    #      sub.H,  sub.W,  sub.area_mm2,
-    #      area_eff_percent,
-    #      read_lat_ns, write_lat_ns, read_E_pJ, write_E_pJ, leakage_mW, tRC_ns]
-    if expect_trailing_trc and len(toks) >= 16:
-        area_mm2     = to_float(toks[-14])
-        read_lat_ns  = to_float(toks[-6])
-        write_lat_ns = to_float(toks[-5])
-        read_E_pJ    = to_float(toks[-4])
-        write_E_pJ   = to_float(toks[-3])
-        leakage_mW   = to_float(toks[-2])
-        tRC_ns       = to_float(toks[-1])
-    else:
-        # fallback (no tRC column at tail)
-        if len(toks) < 15:
-            return None
-        area_mm2     = to_float(toks[-13])
-        read_lat_ns  = to_float(toks[-5])
-        write_lat_ns = to_float(toks[-4])
-        read_E_pJ    = to_float(toks[-3])
-        write_E_pJ   = to_float(toks[-2])
-        leakage_mW   = to_float(toks[-1])
-        tRC_ns       = math.nan
+
+    # the next 15 tokens are the fixed numeric block; tRC_ns is appended at the very end
+    nums = toks[i+1:i+16]
+    if len(nums) < 15:
+        return None
+    vals = list(map(to_float, nums))
     return {
-        "area_mm2": area_mm2,
-        "read_lat_ns": read_lat_ns,
-        "write_lat_ns": write_lat_ns,
-        "read_E_pJ": read_E_pJ,
-        "write_E_pJ": write_E_pJ,
-        "leakage_mW": leakage_mW,
-        "tRC_ns": tRC_ns,
+        # indices in the 15-number block:
+        # 0:bank.H 1:bank.W 2:bank.area
+        # 3:mat.H  4:mat.W  5:mat.area
+        # 6:sub.H  7:sub.W  8:sub.area
+        # 9:area_eff% 10:read_lat_ns 11:write_lat_ns
+        # 12:read_E_pJ 13:write_E_pJ 14:leakage_mW
+        "area_mm2":     vals[2],
+        "read_lat_ns":  vals[10],
+        "write_lat_ns": vals[11],
+        "read_E_pJ":    vals[12],
+        "write_E_pJ":   vals[13],
+        "leakage_mW":   vals[14],
+        # tRC_ns: last column of the whole row (after any extra appended fields)
+        "tRC_ns":       to_float(toks[-1]),
     }
 
 # ---------------------- run NVSim once & locate CSV ----------------------
@@ -206,9 +192,7 @@ def main():
             raw = raw.strip()
             if not raw:
                 continue
-            r = parse_nvsim_row(raw, expect_trailing_trc=True)
-            if not r:
-                r = parse_nvsim_row(raw, expect_trailing_trc=False)
+            r = parse_nvsim_row(raw)   # <-- no kwargs anymore
             if not r:
                 continue
 
