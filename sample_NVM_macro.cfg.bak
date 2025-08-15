@@ -20,7 +20,7 @@
 -Routing: H-tree
 -InternalSensing: true
 
--MemoryCellInputFile: /Users/shinsakukataoka/Projects/COSC-498/NVSim/sample_STTRAM.cell
+-MemoryCellInputFile: sample_STTRAM.cell
 //-MemoryCellInputFile: sample_RRAM.cell
 //-MemoryCellInputFile: sample_STTRAM_aggressive.cell
 

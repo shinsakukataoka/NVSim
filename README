@@ -1,6 +1,20 @@
 NVSim - A performance, energy and area estimation tool
 for non-volatile memory (NVM)
 
+------------------------------------------------------
+
+Memo: do this
+
+./nvsim sample_NVM_macro.cfg            # optional; --run will do it too
+python3 nvsim_post.py --run \
+  --cfg sample_NVM_macro.cfg --nvsim_bin "$(pwd)/nvsim" \
+  --banks 1 --nvm_headroom 0.9 \
+  --ecc_alpha 0.125 --ecc_area_frac 0.12 --ecc_energy_frac_logic 0.03 --ecc_on_link \
+  --d2d_cap_GBs 64 --link_pj_per_bit 0.5 \
+  --retention_E_pJ_per_MB 1000 --retention_T_s 3600 --retention_temp_factor 1.0 \
+  --endurance_cycles 1e12 --endurance_write_factor 1.0 --endurance_time_factor 1.0 \
+  > enriched.csv
+
 ======================================================
 
 Sections
@@ -115,5 +129,4 @@ either create an issue on github or contact us via email.
 Cong Xu <xucongpsu@gmail.com>
 Xiangyu Dong <rioshering@gmail.com>
 Shuangchen Li <lschen.26@gmail.com>
-
 
