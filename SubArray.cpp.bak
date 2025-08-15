@@ -36,7 +36,6 @@
 
 
 #include "SubArray.h"
-#include "typedef.h"
 #include "formula.h"
 #include "global.h"
 #include "constant.h"
@@ -238,11 +237,6 @@ void SubArray::Initialize(long long _numRow, long long _numColumn, bool _multipl
 	resWordline = lenWordline * localWire->resWirePerUnit;
 	capBitline = lenBitline * localWire->capWirePerUnit;
 	resBitline = lenBitline * localWire->resWirePerUnit;
-	/* FinFET modeling tweak: slightly higher effective fringe/gate cap at same F */
-	if (inputParameter->transistorFlavor == FinFET) {
-		capWordline *= 1.12;
-		capBitline  *= 1.08;
-	}
 
 	/* Caclulate the load resistance and capacitance for Mux Decoders */
 	double capMuxLoad, resMuxLoad;
@@ -370,12 +364,7 @@ void SubArray::Initialize(long long _numRow, long long _numColumn, bool _multipl
 		// TO-DO
 	}
 
-	/* FinFET capacitance correction (coarse): increase WL cap by ~10% to reflect higher effective gate/fringe caps in fins */
-	if (inputParameter->transistorFlavor == FinFET) {
-		capWordline *= 1.10;
-	}
-
-/* Initialize sub-component */
+	/* Initialize sub-component */
 
 	precharger.Initialize(tech->vdd, numColumn, capBitline, resBitline);
 	precharger.CalculateRC();

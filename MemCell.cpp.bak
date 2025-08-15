@@ -53,12 +53,10 @@ MemCell::MemCell() {
 	readCurrent         = 0;
 	readPower           = 0;
         wordlineBoostRatio  = 1.0;
-	retentionTime       = 0;
 	resetMode           = true;
 	resetVoltage        = 0;
 	resetCurrent        = 0;
 	minSenseVoltage     = 0.08;
-	retentionTime        = 0;
 	resetPulse          = 0;
 	resetEnergy         = 0;
 	setMode             = true;
@@ -243,11 +241,6 @@ void MemCell::ReadCellFromFile(const string & inputFile)
 			continue;
 		}
 
-
-		if (!strncmp("-RetentionTime", line, strlen("-RetentionTime"))) {
-			sscanf(line, "-RetentionTime (s): %lf", &retentionTime);
-			continue;
-		}
 
 		if (!strncmp("-ResetMode", line, strlen("-ResetMode"))) {
 			sscanf(line, "-ResetMode: %s", tmp);

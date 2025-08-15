@@ -20,3 +20,4 @@
 -AccessType: CMOS
 -VoltageDropAccessDevice (V): 0.15
 -AccessCMOSWidth (F): 8
+-RetentionTime (s): 0.050

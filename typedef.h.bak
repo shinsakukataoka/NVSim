@@ -65,14 +65,6 @@ enum DeviceRoadmap
 	LOP		/* Low operating power */
 };
 
-
-
-enum TransistorFlavor
-{
-	Planar,
-	FinFET
-};
-
 enum WireType
 {
 	local_aggressive = 0,	/* Width = 2.5F */

@@ -96,8 +96,6 @@ InputParameter::InputParameter() {
 
 	useCactiAssumption = false;
 
-	enableRetention = false;
-	transistorFlavor = Planar;
 	writeScheme = normal_write;
 	cacheAccessMode = normal_access_mode;
 
@@ -397,20 +395,6 @@ void InputParameter::ReadInputParameterFromFile(const std::string & inputFile) {
 				routingMode = non_h_tree;
 			continue;
 		}
-		if (!strncmp("-EnableRetention", line, strlen("-EnableRetention"))) {
-			sscanf(line, "-EnableRetention: %s", tmp);
-			enableRetention = (!strcmp(tmp, "Yes") || !strcmp(tmp, "True") || !strcmp(tmp, "Enable") || !strcmp(tmp, "YES") || !strcmp(tmp, "TRUE"));
-			continue;
-		}
-		if (!strncmp("-TransistorFlavor", line, strlen("-TransistorFlavor"))) {
-			sscanf(line, "-TransistorFlavor: %s", tmp);
-			if (!strcmp(tmp, "FinFET") || !strcmp(tmp, "FINFET"))
-				transistorFlavor = FinFET;
-			else
-				transistorFlavor = Planar;
-			continue;
-		}
-
 
 		if (!strncmp("-InternalSensing", line, strlen("-InternalSensing"))) {
 			sscanf(line, "-InternalSensing: %s", tmp);
