@@ -1,40 +1,3 @@
-/*******************************************************************************
-* Copyright (c) 2012-2013, The Microsystems Design Labratory (MDL)
-* Department of Computer Science and Engineering, The Pennsylvania State University
-* Exascale Computing Lab, Hewlett-Packard Company
-* All rights reserved.
-* 
-* This source code is part of NVSim - An area, timing and power model for both 
-* volatile (e.g., SRAM, DRAM) and non-volatile memory (e.g., PCRAM, STT-RAM, ReRAM, 
-* SLC NAND Flash). The source code is free and you can redistribute and/or modify it
-* by providing that the following conditions are met:
-* 
-*  1) Redistributions of source code must retain the above copyright notice,
-*     this list of conditions and the following disclaimer.
-* 
-*  2) Redistributions in binary form must reproduce the above copyright notice,
-*     this list of conditions and the following disclaimer in the documentation
-*     and/or other materials provided with the distribution.
-* 
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-* 
-* Author list: 
-*   Cong Xu	    ( Email: czx102 at psu dot edu 
-*                     Website: http://www.cse.psu.edu/~czx102/ )
-*   Xiangyu Dong    ( Email: xydong at cse dot psu dot edu
-*                     Website: http://www.cse.psu.edu/~xydong/ )
-*******************************************************************************/
-
-
 #ifndef INPUTPARAMETER_H_
 #define INPUTPARAMETER_H_
 
@@ -131,6 +94,27 @@ public:
 	int maxIsLocalWireLowSwing;		/* This one is actually boolean */
 	int minIsGlobalWireLowSwing;		/* This one is actually boolean */
 	int maxIsGlobalWireLowSwing;		/* This one is actually boolean */
+
+	/* --- Added: banking, ECC, retention, endurance, link, sweep metadata (pure plumbing) --- */
+	int    banks;                 /* number of identical banks (scales area/leakage/BW), default 1 */
+	double nvmPeakHeadroom;       /* e.g., 0.9 for p99 cap headroom on NVM peak */
+	double d2dCapGBps;            /* die-to-die/package cap in GB/s; cap_effective = min(banked, d2dCapGBps) */
+	double eccAlpha;              /* ECC overhead as fraction (e.g., 0.125); if <0, derive from bits below */
+	int    eccBits;               /* if provided with dataBits, alpha = eccBits/dataBits */
+	int    dataBits;
+	double eccAreaFrac;           /* additive area overhead fraction for ECC structures */
+	double eccLogicEnergyFrac;    /* extra logic energy fraction (multiplies energy) */
+	bool   eccOnLink;             /* if true, link energy scales with (1+alpha) */
+	double scrubEnergyPerMB_pJ;   /* background scrub energy per MB (pJ) */
+	double scrubPeriod_s;         /* scrub period seconds; 0 disables */
+	double retentionTempFactor;   /* multiplier for retention background power */
+	double enduranceCycles;       /* metadata */
+	double enduranceTimeFactor;   /* scales write latency reporting only */
+	double enduranceWriteFactor;  /* scales write energy (reporting only) */
+	double linkEnergyPerBit_pJ;   /* pJ/bit on the external link */
+	double capacitySweepMBMin;    /* optional sweep metadata pass-through */
+	double capacitySweepMBMax;
+	double capacitySweepMBStep;
 };
 
 #endif /* INPUTPARAMETER_H_ */

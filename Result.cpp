@@ -803,6 +803,21 @@ void Result::printToCsvFile(ofstream &outputFile) {
 	outputFile << bank->readLatency * 1e9 << "," << bank->writeLatency * 1e9 << ",";
 	outputFile << bank->readDynamicEnergy * 1e12 << "," << bank->writeDynamicEnergy * 1e12 << ",";
 	outputFile << bank->leakage * 1e3 << ",";
+        /* tRC_ns for DRAM/eDRAM */
+        {
+            double tRC_ns = 0.0;
+            if (cell->memCellType == DRAM || cell->memCellType == eDRAM) {
+                double senseLat = inputParameter->internalSensing ? bank->mat.subarray.senseAmp.readLatency : 0.0;
+                double muxLat = bank->mat.subarray.bitlineMux.readLatency
+                    + bank->mat.subarray.senseAmpMuxLev1.readLatency
+                    + bank->mat.subarray.senseAmpMuxLev2.readLatency;
+                tRC_ns = (bank->mat.subarray.rowDecoder.readLatency
+                     + bank->mat.subarray.bitlineDelay
+                     + senseLat + muxLat
+                     + bank->mat.subarray.precharger.readLatency) * 1e9;  // ns
+            }
+            outputFile << tRC_ns << ",";
+        }
 }
 
 void Result::printAsCacheToCsvFile(Result &tagResult, CacheAccessMode cacheAccessMode, ofstream &outputFile) {

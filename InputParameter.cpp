@@ -1,40 +1,3 @@
-/*******************************************************************************
-* Copyright (c) 2012-2013, The Microsystems Design Labratory (MDL)
-* Department of Computer Science and Engineering, The Pennsylvania State University
-* Exascale Computing Lab, Hewlett-Packard Company
-* All rights reserved.
-* 
-* This source code is part of NVSim - An area, timing and power model for both 
-* volatile (e.g., SRAM, DRAM) and non-volatile memory (e.g., PCRAM, STT-RAM, ReRAM, 
-* SLC NAND Flash). The source code is free and you can redistribute and/or modify it
-* by providing that the following conditions are met:
-* 
-*  1) Redistributions of source code must retain the above copyright notice,
-*     this list of conditions and the following disclaimer.
-* 
-*  2) Redistributions in binary form must reproduce the above copyright notice,
-*     this list of conditions and the following disclaimer in the documentation
-*     and/or other materials provided with the distribution.
-* 
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-* 
-* Author list: 
-*   Cong Xu	    ( Email: czx102 at psu dot edu 
-*                     Website: http://www.cse.psu.edu/~czx102/ )
-*   Xiangyu Dong    ( Email: xydong at cse dot psu dot edu
-*                     Website: http://www.cse.psu.edu/~xydong/ )
-*******************************************************************************/
-
-
 #include "InputParameter.h"
 #include "global.h"
 #include "constant.h"
@@ -43,7 +6,7 @@
 #include <stdio.h>
 
 InputParameter::InputParameter() {
-	// TODO Auto-generated constructor stub
+	// Defaults from original
 	designTarget = cache;
 	optimizationTarget = read_latency_optimized;
 	processNode = 90;
@@ -116,6 +79,27 @@ InputParameter::InputParameter() {
 	flashBlockSize = 0;
 
 	outputFilePrefix = "output";	/* Default output file name */
+
+	/* --- New defaults (plumbing only; do not affect solver) --- */
+	banks = 1;
+	nvmPeakHeadroom = 0.90;
+	d2dCapGBps = 1e99;     /* effectively infinite unless set */
+	eccAlpha = -1.0;       /* negative means: derive from bits if provided */
+	eccBits = 0;
+	dataBits = 0;
+	eccAreaFrac = 0.0;
+	eccLogicEnergyFrac = 0.0;
+	eccOnLink = false;
+	scrubEnergyPerMB_pJ = 0.0;
+	scrubPeriod_s = 0.0;
+	retentionTempFactor = 1.0;
+	enduranceCycles = 0.0;
+	enduranceTimeFactor = 1.0;
+	enduranceWriteFactor = 1.0;
+	linkEnergyPerBit_pJ = 0.0;
+	capacitySweepMBMin = 0.0;
+	capacitySweepMBMax = 0.0;
+	capacitySweepMBStep = 0.0;
 }
 
 InputParameter::~InputParameter() {
@@ -411,7 +395,6 @@ void InputParameter::ReadInputParameterFromFile(const std::string & inputFile) {
 			continue;
 		}
 
-
 		if (!strncmp("-InternalSensing", line, strlen("-InternalSensing"))) {
 			sscanf(line, "-InternalSensing: %s", tmp);
 			if (!strcmp(tmp, "true"))
@@ -573,6 +556,87 @@ void InputParameter::ReadInputParameterFromFile(const std::string & inputFile) {
 			isConstraintApplied = true;
 			continue;
 		}
+
+		/* ---------- New parsing (plumbing only) ---------- */
+		if (!strncmp("-Banks", line, strlen("-Banks"))) {
+			sscanf(line, "-Banks: %d", &banks);
+			if (banks < 1) banks = 1;
+			continue;
+		}
+		if (!strncmp("-NvmPeakHeadroom", line, strlen("-NvmPeakHeadroom"))) {
+			sscanf(line, "-NvmPeakHeadroom: %lf", &nvmPeakHeadroom);
+			continue;
+		}
+		if (!strncmp("-D2DCapGBps", line, strlen("-D2DCapGBps"))) {
+			sscanf(line, "-D2DCapGBps: %lf", &d2dCapGBps);
+			continue;
+		}
+		if (!strncmp("-ECCAlpha", line, strlen("-ECCAlpha"))) {
+			sscanf(line, "-ECCAlpha: %lf", &eccAlpha);
+			continue;
+		}
+		if (!strncmp("-ECCBits", line, strlen("-ECCBits"))) {
+			sscanf(line, "-ECCBits: %d", &eccBits);
+			continue;
+		}
+		if (!strncmp("-DataBits", line, strlen("-DataBits"))) {
+			sscanf(line, "-DataBits: %d", &dataBits);
+			continue;
+		}
+		if (!strncmp("-ECCAreaFrac", line, strlen("-ECCAreaFrac"))) {
+			sscanf(line, "-ECCAreaFrac: %lf", &eccAreaFrac);
+			continue;
+		}
+		if (!strncmp("-ECCLogicEnergyFrac", line, strlen("-ECCLogicEnergyFrac"))) {
+			sscanf(line, "-ECCLogicEnergyFrac: %lf", &eccLogicEnergyFrac);
+			continue;
+		}
+		if (!strncmp("-ECCOnLink", line, strlen("-ECCOnLink"))) {
+			sscanf(line, "-ECCOnLink: %s", tmp);
+			eccOnLink = (!strcmp(tmp, "Yes") || !strcmp(tmp, "True") || !strcmp(tmp, "Enable") || !strcmp(tmp, "YES") || !strcmp(tmp, "TRUE"));
+			continue;
+		}
+		if (!strncmp("-ScrubEnergyPerMB_pJ", line, strlen("-ScrubEnergyPerMB_pJ"))) {
+			sscanf(line, "-ScrubEnergyPerMB_pJ: %lf", &scrubEnergyPerMB_pJ);
+			continue;
+		}
+		if (!strncmp("-ScrubPeriod_s", line, strlen("-ScrubPeriod_s"))) {
+			sscanf(line, "-ScrubPeriod_s: %lf", &scrubPeriod_s);
+			continue;
+		}
+		if (!strncmp("-RetentionTempFactor", line, strlen("-RetentionTempFactor"))) {
+			sscanf(line, "-RetentionTempFactor: %lf", &retentionTempFactor);
+			continue;
+		}
+		if (!strncmp("-EnduranceCycles", line, strlen("-EnduranceCycles"))) {
+			sscanf(line, "-EnduranceCycles: %lf", &enduranceCycles);
+			continue;
+		}
+		if (!strncmp("-EnduranceTimeFactor", line, strlen("-EnduranceTimeFactor"))) {
+			sscanf(line, "-EnduranceTimeFactor: %lf", &enduranceTimeFactor);
+			continue;
+		}
+		if (!strncmp("-EnduranceWriteFactor", line, strlen("-EnduranceWriteFactor"))) {
+			sscanf(line, "-EnduranceWriteFactor: %lf", &enduranceWriteFactor);
+			continue;
+		}
+		if (!strncmp("-LinkEnergyPerBit_pJ", line, strlen("-LinkEnergyPerBit_pJ"))) {
+			sscanf(line, "-LinkEnergyPerBit_pJ: %lf", &linkEnergyPerBit_pJ);
+			continue;
+		}
+		if (!strncmp("-CapacitySweepMBMin", line, strlen("-CapacitySweepMBMin"))) {
+			sscanf(line, "-CapacitySweepMBMin: %lf", &capacitySweepMBMin);
+			continue;
+		}
+		if (!strncmp("-CapacitySweepMBMax", line, strlen("-CapacitySweepMBMax"))) {
+			sscanf(line, "-CapacitySweepMBMax: %lf", &capacitySweepMBMax);
+			continue;
+		}
+		if (!strncmp("-CapacitySweepMBStep", line, strlen("-CapacitySweepMBStep"))) {
+			sscanf(line, "-CapacitySweepMBStep: %lf", &capacitySweepMBStep);
+			continue;
+		}
+		/* ---------- end new parsing ---------- */
 	}
 
 	fclose(fp);
@@ -614,7 +678,6 @@ void InputParameter::PrintInputParameter() {
 		cout << "Page Size  : " << pageSize / 8 << "Bytes" << endl;
 		cout << "Block Size : " << flashBlockSize / 8 / 1024 << "KB" << endl;
 	}
-	// TO-DO: tedious work here!!!
 
 	if (optimizationTarget == full_exploration) {
 		cout << endl << "Full design space exploration ... might take hours" << endl;
