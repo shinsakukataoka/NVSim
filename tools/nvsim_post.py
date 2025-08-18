@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse, math, os, re, sys, glob, subprocess, time
+import json, hashlib
 
 # ---------------------- helpers: cfg parsing & csv tail parse ----------------------
 
@@ -45,33 +46,25 @@ def to_float(x):
 
 def parse_nvsim_row(line):
     toks = [t.strip() for t in line.strip().split(',') if t.strip() != '']
-    # find the marker just before the numeric block
     try:
         i = next(k for k, t in enumerate(toks)
                  if t in ("Latency-Optimized", "Balanced", "Area-Optimized"))
     except StopIteration:
         return None
-
-    # the next 15 tokens are the fixed numeric block; tRC_ns is appended at the very end
-    nums = toks[i+1:i+16]
+    nums = toks[i+1:i+16]              # 15 fixed numerics
     if len(nums) < 15:
         return None
     vals = list(map(to_float, nums))
+    tRC_tok_idx = i + 16
+    tRC_ns = to_float(toks[tRC_tok_idx]) if tRC_tok_idx < len(toks) else math.nan
     return {
-        # indices in the 15-number block:
-        # 0:bank.H 1:bank.W 2:bank.area
-        # 3:mat.H  4:mat.W  5:mat.area
-        # 6:sub.H  7:sub.W  8:sub.area
-        # 9:area_eff% 10:read_lat_ns 11:write_lat_ns
-        # 12:read_E_pJ 13:write_E_pJ 14:leakage_mW
         "area_mm2":     vals[2],
         "read_lat_ns":  vals[10],
         "write_lat_ns": vals[11],
         "read_E_pJ":    vals[12],
         "write_E_pJ":   vals[13],
         "leakage_mW":   vals[14],
-        # tRC_ns: last column of the whole row (after any extra appended fields)
-        "tRC_ns":       to_float(toks[-1]),
+        "tRC_ns":       tRC_ns,  # fixed position right after the 15-number block
     }
 
 # ---------------------- run NVSim once & locate CSV ----------------------
@@ -122,6 +115,53 @@ def run_nvsim_and_get_csv(nvsim_bin, cfg_path, prefix_hint=None):
         return None
     return csv_path
 
+# ---------------------- device-pack emit helper ----------------------
+
+def write_device_pack(out_path, first_pack, args, cfg):
+    pack = {
+        "name": f"device_from_nvsim_{(args.device_type or 'NVM').lower()}",
+        "meta": {
+            "pack_sha": "",
+            "tool_version": "nvsim_post.py",
+            "source": "nvsim",
+            "date": time.strftime("%Y-%m-%d"),
+        },
+        "nvm": {
+            "type": args.device_type,
+            "e_const_commit_pJ": args.e_commit_pj,
+            "l_const_commit_ns": args.l_commit_ns,
+            "e_read_pJ_per_B": first_pack["e_read"],
+            "e_write_pJ_per_B": first_pack["e_write"],
+            "t_read_ns": first_pack["t_read_ns"],
+            "t_write_ns": first_pack["t_write_ns"],
+            "leakage_mW_per_bank": first_pack["leakage_mW"],
+            "endurance_cycles": args.endurance_cycles,
+        },
+        "sram": {
+            "e_read_pJ_per_B": args.sram_e_read,
+            "e_write_pJ_per_B": args.sram_e_write,
+            "t_read_ns": args.sram_t_read,
+            "t_write_ns": args.sram_t_write,
+            "leakage_mW_per_bank": args.sram_leak,
+        },
+    }
+    # optional meta passthrough
+    if cfg and cfg.get("process_nm") is not None:
+        pack["meta"]["process_nm"] = cfg["process_nm"]
+    if cfg and cfg.get("device"):
+        pack["meta"]["device"] = cfg["device"]
+
+    # stable SHA over (nvm+sram)
+    digest = hashlib.sha256(
+        json.dumps({"nvm": pack["nvm"], "sram": pack["sram"]},
+                   sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    pack["meta"]["pack_sha"] = digest
+
+    with open(out_path, "w", encoding="utf-8") as fp:
+        json.dump(pack, fp, indent=2)
+    print(f"[nvsim_post] wrote device pack → {out_path}", file=sys.stderr)
+
 # ---------------------- main (single run only) ----------------------
 
 def main():
@@ -146,7 +186,41 @@ def main():
     ap.add_argument("--endurance_cycles", type=float, default=0.0)
     ap.add_argument("--endurance_write_factor", type=float, default=1.0)
     ap.add_argument("--endurance_time_factor", type=float, default=1.0)
+
+    # Emit NVSuite device pack (JSON)
+    ap.add_argument("--emit-device-pack", dest="emit_device_pack", default=None,
+                    help="Write NVSuite device JSON from first parsed row.")
+    ap.add_argument("--device-type", default="eMRAM")
+    ap.add_argument("--e-commit-pj", type=float, default=200.0, dest="e_commit_pj")
+    ap.add_argument("--l-commit-ns", type=float, default=100.0, dest="l_commit_ns")
+    ap.add_argument("--energies-from", choices=["payload","raw"], default="payload",
+                    dest="energies_from",
+                    help="Choose energies per byte from payload (includes ECC/logic) or raw.")
+
+    # Simple SRAM defaults (override or use --sram-pack)
+    ap.add_argument("--sram-e-read",  type=float, default=0.3, dest="sram_e_read")
+    ap.add_argument("--sram-e-write", type=float, default=0.4, dest="sram_e_write")
+    ap.add_argument("--sram-t-read",  type=float, default=2.0, dest="sram_t_read")
+    ap.add_argument("--sram-t-write", type=float, default=2.0, dest="sram_t_write")
+    ap.add_argument("--sram-leak",    type=float, default=0.8, dest="sram_leak")
+    ap.add_argument("--sram-pack", default=None,
+                    help="Path to JSON with SRAM keys: e_read_pJ_per_B, e_write_pJ_per_B, leakage_mW_per_bank, t_read_ns, t_write_ns")
+
     args = ap.parse_args()
+
+    # clamp headroom to [0,1]
+    args.nvm_headroom = max(0.0, min(args.nvm_headroom, 1.0))
+
+    # Optionally load SRAM pack from JSON
+    if args.sram_pack:
+        with open(args.sram_pack, "r", encoding="utf-8") as fp:
+            s = json.load(fp)
+        src = s.get("sram", s)  # allow either top-level or {"sram": {...}}
+        args.sram_e_read  = float(src["e_read_pJ_per_B"])
+        args.sram_e_write = float(src["e_write_pJ_per_B"])
+        args.sram_t_read  = float(src.get("t_read_ns", args.sram_t_read))
+        args.sram_t_write = float(src.get("t_write_ns", args.sram_t_write))
+        args.sram_leak    = float(src["leakage_mW_per_bank"])
 
     if args.run and not args.cfg:
         print("--run requires --cfg", file=sys.stderr)
@@ -186,6 +260,7 @@ def main():
         "ecc_area_frac","ecc_energy_frac",
     ]
     print(",".join(cols))
+    first_pack = None
 
     with open(infile, 'r', encoding='utf-8') as f:
         for raw in f:
@@ -244,6 +319,20 @@ def main():
             cap_raw_MB = capacity_MB if capacity_MB is not None else math.nan
             cap_pay_MB = (capacity_MB * payload_ratio) if capacity_MB is not None else math.nan
 
+            # choose energy flavor for device pack
+            e_read_sel  = read_pJ_per_payload_B  if args.energies_from == "payload" else read_pJ_per_B_raw
+            e_write_sel = write_pJ_per_payload_B if args.energies_from == "payload" else write_pJ_per_B_raw
+
+            if first_pack is None and all(not math.isnan(v) for v in [e_read_sel, e_write_sel,
+                                                                       r["read_lat_ns"], r["write_lat_ns"], r["leakage_mW"]]):
+                first_pack = {
+                    "e_read": e_read_sel,
+                    "e_write": e_write_sel,
+                    "t_read_ns": r["read_lat_ns"],
+                    "t_write_ns": r["write_lat_ns"],
+                    "leakage_mW": r["leakage_mW"],
+                }
+
             row = [
                 f"{r['area_mm2']}", f"{area_total}",
                 f"{r['read_lat_ns']}",
@@ -275,6 +364,14 @@ def main():
                 f"{args.ecc_energy_frac_logic}",
             ]
             print(",".join(row))
+
+    # Emit device pack if requested
+    if args.emit_device_pack:
+        if first_pack is None:
+            print("[nvsim_post] cannot emit device pack: no valid row parsed (missing line_bytes or NaNs).",
+                  file=sys.stderr)
+        else:
+            write_device_pack(args.emit_device_pack, first_pack, args, cfg)
 
 if __name__ == "__main__":
     main()

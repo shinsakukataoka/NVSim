@@ -78,7 +78,7 @@ InputParameter::InputParameter() {
 	pageSize = 0;
 	flashBlockSize = 0;
 
-	outputFilePrefix = "output";	/* Default output file name */
+	outputFilePrefix = "../out/output";	/* Default output file name */
 
 	/* --- New defaults (plumbing only; do not affect solver) --- */
 	banks = 1;

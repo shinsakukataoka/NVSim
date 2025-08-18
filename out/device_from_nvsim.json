@@ -1,0 +1,29 @@
+{
+  "name": "device_from_nvsim_emram",
+  "meta": {
+    "pack_sha": "6f4c20321899c8a19c2f659b6e29deccb205f95d4213797b2777ba32ca8bbc99",
+    "tool_version": "nvsim_post.py",
+    "source": "nvsim",
+    "date": "2025-08-18",
+    "process_nm": 22,
+    "device": "HP"
+  },
+  "nvm": {
+    "type": "eMRAM",
+    "e_const_commit_pJ": 200.0,
+    "l_const_commit_ns": 100.0,
+    "e_read_pJ_per_B": 2.4025594921875,
+    "e_write_pJ_per_B": 9.656443125000001,
+    "t_read_ns": 2.0853,
+    "t_write_ns": 10.5793,
+    "leakage_mW_per_bank": 16.3129,
+    "endurance_cycles": 1000000000.0
+  },
+  "sram": {
+    "e_read_pJ_per_B": 0.3,
+    "e_write_pJ_per_B": 0.4,
+    "t_read_ns": 2.0,
+    "t_write_ns": 2.0,
+    "leakage_mW_per_bank": 0.8
+  }
+}
